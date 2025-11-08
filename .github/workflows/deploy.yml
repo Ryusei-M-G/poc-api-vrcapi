@@ -12,35 +12,32 @@ defaults:
   run:
     shell: bash
 
-# ← 環境Secretsを使う場合は有効化（Secretsをその環境側に作成）
-# environment: production
-
-env:
-  SSH_HOST: ${{ secrets.SSH_HOST }}
-  SSH_USER: ${{ secrets.SSH_USER }}
-  SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
-  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
-  PM2_APP_NAME: ${{ secrets.PM2_APP_NAME }}
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # 環境Secretsを使っているなら有効化
+    # environment: production
+
+    # ← ここ（job直下）で env を定義（secrets / vars 両対応）
+    env:
+      SSH_HOST: ${{ secrets.SSH_HOST || vars.SSH_HOST }}
+      SSH_USER: ${{ secrets.SSH_USER || vars.SSH_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || vars.SSH_PORT || 22 }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || vars.SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || vars.DEPLOY_PATH }}
+      PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || vars.PM2_APP_NAME }}
 
     steps:
       - name: Validate required inputs
         run: |
           set -Eeuo pipefail
-          missing=0
           for v in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH PM2_APP_NAME; do
             if [ -z "${!v:-}" ]; then
-              echo "::error title=Missing secret::$v is empty. Define it in GitHub Secrets."
-              missing=1
+              echo "::error title=Missing::$v is empty (check Secrets or Variables)."
+              exit 1
             fi
           done
-          if [ "$missing" -ne 0 ]; then
-            exit 1
-          fi
+          echo "::notice::All required inputs are set."
 
       - name: Checkout
         uses: actions/checkout@v4
@@ -79,10 +76,8 @@ jobs:
             mkdir -p "'"$DEPLOY_PATH"'"
             tar -xzf /tmp/deploy.tar.gz -C "'"$DEPLOY_PATH"'"
             rm -f /tmp/deploy.tar.gz
-
             cd "'"$DEPLOY_PATH"'"
             npm ci --omit=dev
-
             if pm2 describe "'"$PM2_APP_NAME"'" >/dev/null 2>&1; then
               pm2 reload "'"$PM2_APP_NAME"'"
             else
