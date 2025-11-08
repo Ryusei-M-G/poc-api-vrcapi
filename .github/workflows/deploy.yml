@@ -4,10 +4,6 @@ on:
   push:
     branches: [main]
 
-concurrency:
-  group: gce-deploy-${{ github.ref }}
-  cancel-in-progress: true
-
 defaults:
   run:
     shell: bash
@@ -15,17 +11,14 @@ defaults:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    # 環境Secretsを使っているなら有効化
-    # environment: production
 
-    # ← ここ（job直下）で env を定義（secrets / vars 両対応）
     env:
-      SSH_HOST: ${{ secrets.SSH_HOST || vars.SSH_HOST }}
-      SSH_USER: ${{ secrets.SSH_USER || vars.SSH_USER }}
-      SSH_PORT: ${{ secrets.SSH_PORT || vars.SSH_PORT || 22 }}
-      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY || vars.SSH_PRIVATE_KEY }}
-      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || vars.DEPLOY_PATH }}
-      PM2_APP_NAME: ${{ secrets.PM2_APP_NAME || vars.PM2_APP_NAME }}
+      SSH_HOST: ${{ secrets.SERVER_HOST }}
+      SSH_USER: ${{ secrets.SERVER_USER }}
+      SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.SERVER_PATH }}
+      PM2_APP_NAME: poc-api-vrcapi   # ← Secretが無いので固定値にするか、PM2_APP_NAMEを作成
 
     steps:
       - name: Validate required inputs
@@ -33,22 +26,19 @@ jobs:
           set -Eeuo pipefail
           for v in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH PM2_APP_NAME; do
             if [ -z "${!v:-}" ]; then
-              echo "::error title=Missing::$v is empty (check Secrets or Variables)."
+              echo "::error title=Missing::$v is empty."
               exit 1
             fi
           done
-          echo "::notice::All required inputs are set."
 
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
 
-      - name: Build deploy bundle (no node_modules)
+      - name: Build deploy bundle
         run: |
           set -Eeuo pipefail
           mkdir -p .deploy
@@ -63,14 +53,11 @@ jobs:
           chmod 600 "$HOME/.ssh/id_ed25519"
           ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
 
-      - name: Copy bundle to server
-        run: |
-          set -Eeuo pipefail
-          scp -P "$SSH_PORT" .deploy/deploy.tar.gz "$SSH_USER@$SSH_HOST:/tmp/deploy.tar.gz"
+      - name: Copy bundle
+        run: scp -P "$SSH_PORT" .deploy/deploy.tar.gz "$SSH_USER@$SSH_HOST:/tmp/deploy.tar.gz"
 
-      - name: Install on server & restart PM2
+      - name: Install & PM2 restart
         run: |
-          set -Eeuo pipefail
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -lc '
             set -Eeuo pipefail
             mkdir -p "'"$DEPLOY_PATH"'"
@@ -86,6 +73,6 @@ jobs:
             pm2 save
           '
 
-      - name: Cleanup
+      - name: Cleanup key
         if: always()
         run: rm -f "$HOME/.ssh/id_ed25519"
