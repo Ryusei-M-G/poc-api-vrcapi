@@ -1,12 +1,12 @@
 export const verify = async (req, res) => {
-  const id = req.body.id;
-  const pass = req.body.pass;
-  const code = req.body?.code;
+ const { VRCHAT_USERNAME, VRCHAT_PASSWORD, VRCHAT_CODE } = req.body;
 
-  if (!id || !pass) {
+  if (!VRCHAT_USERNAME|| !VRCHAT_PASSWORD) {
     res
       .status(400)
       .json({ message: "bad request. please send id and password" });
     return;
   }
+
+
 };
