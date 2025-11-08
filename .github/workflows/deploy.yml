@@ -1,57 +1,85 @@
-name: Deploy to Server
+name: Deploy to GCE (SSH + PM2)
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
+
+# 同時実行防止
+concurrency:
+  group: gce-deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SSH_HOST: ${{ secrets.SSH_HOST }}           # 例: 34.12.34.56
+  SSH_USER: ${{ secrets.SSH_USER }}           # 例: ubuntu
+  SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
+  SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}     # 例: /var/www/poc-api-vrcapi
+  PM2_APP_NAME: ${{ secrets.PM2_APP_NAME }}   # 例: poc-api-vrcapi
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: 20
+          cache: npm
 
-      - name: Install dependencies
-        run: npm install --production
+      # ローカルでのビルドが不要なAPIならスキップ可。必要なら npm run build を追加
+      - name: Prepare deploy bundle (no node_modules)
+        run: |
+          mkdir -p .deploy
+          tar \
+            --exclude='.git' \
+            --exclude='node_modules' \
+            -czf .deploy/deploy.tar.gz .
 
       - name: Setup SSH
         run: |
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
-          chmod 600 ~/.ssh/id_rsa
+          echo "${SSH_PRIVATE_KEY}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
           chmod 700 ~/.ssh
-          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+          # known_hosts 登録
+          ssh-keyscan -p "${SSH_PORT}" -H "${SSH_HOST}" >> ~/.ssh/known_hosts
 
-      - name: Deploy files via SCP
+      - name: Copy bundle to server
         run: |
-          scp -r \
-            index.js \
-            verify.js \
-            getTrust.js \
-            getVrcID.js \
-            package.json \
-            package-lock.json \
-            node_modules \
-            ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_PATH }}
+          scp -P "${SSH_PORT}" .deploy/deploy.tar.gz "${SSH_USER}@${SSH_HOST}:/tmp/deploy.tar.gz"
 
-      - name: Install dependencies on server and restart with PM2
+      - name: Install on server & restart PM2
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} << 'EOF'
-            cd ${{ secrets.SERVER_PATH }}
-            npm install --production
-            export PATH=$PATH:$HOME/.local/bin:$HOME/.npm-global/bin
-            pm2 restart poc-api-vrcapi || pm2 start index.js --name poc-api-vrcapi --interpreter node
+          ssh -p "${SSH_PORT}" "${SSH_USER}@${SSH_HOST}" bash -lc '
+            set -euo pipefail
+
+            mkdir -p "'"${DEPLOY_PATH}"'"
+            # 展開
+            tar -xzf /tmp/deploy.tar.gz -C "'"${DEPLOY_PATH}"'"
+
+            cd "'"${DEPLOY_PATH}"'"
+
+            # Node/PM2 前提: サーバ側に Node.js と pm2 が入っていること
+            # 依存を本番用でインストール（ネイティブモジュールはサーバ環境で解決）
+            npm ci --omit=dev
+
+            # 初回は start、その後は graceful reload
+            if pm2 describe "'"${PM2_APP_NAME}"'" >/dev/null 2>&1; then
+              pm2 reload "'"${PM2_APP_NAME}"'"
+            else
+              pm2 start index.js --name "'"${PM2_APP_NAME}"'"
+            fi
+
             pm2 save
-          EOF
+            # 後始末
+            rm -f /tmp/deploy.tar.gz
+          '
 
-      - name: Cleanup SSH
+      - name: Cleanup SSH key
         if: always()
-        run: |
-          rm -f ~/.ssh/id_rsa
+        run: rm -f ~/.ssh/id_ed25519
