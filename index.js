@@ -1,9 +1,11 @@
-import express from "express";
+import express, { json } from "express";
+import cors from 'cors'
 
-i
+import { verify } from "./verify";
 const app = express();
 
-
+app.use(cors());
+app.use(json());
 
 app.post('/api/verify',verify);
 app.get('/api/getVrcId',getVrcID);
