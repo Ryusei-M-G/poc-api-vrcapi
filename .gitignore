@@ -142,3 +142,6 @@ vite.config.ts.timestamp-*
 
 # auth token
 vrchat_auth.json
+
+# front
+debug
