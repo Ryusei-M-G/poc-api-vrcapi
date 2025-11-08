@@ -12,19 +12,36 @@ defaults:
   run:
     shell: bash
 
+# ← 環境Secretsを使う場合は有効化（Secretsをその環境側に作成）
+# environment: production
+
 env:
-  SSH_HOST: ${{ secrets.SSH_HOST }}           # 例: 34.xx.xx.xx
-  SSH_USER: ${{ secrets.SSH_USER }}           # 例: ubuntu
+  SSH_HOST: ${{ secrets.SSH_HOST }}
+  SSH_USER: ${{ secrets.SSH_USER }}
   SSH_PORT: ${{ secrets.SSH_PORT || 22 }}
   SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}     # 例: /var/www/poc-api-vrcapi
-  PM2_APP_NAME: ${{ secrets.PM2_APP_NAME }}   # 例: poc-api-vrcapi
+  DEPLOY_PATH: ${{ secrets.DEPLOY_PATH }}
+  PM2_APP_NAME: ${{ secrets.PM2_APP_NAME }}
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Validate required inputs
+        run: |
+          set -Eeuo pipefail
+          missing=0
+          for v in SSH_HOST SSH_USER SSH_PRIVATE_KEY DEPLOY_PATH PM2_APP_NAME; do
+            if [ -z "${!v:-}" ]; then
+              echo "::error title=Missing secret::$v is empty. Define it in GitHub Secrets."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -43,13 +60,10 @@ jobs:
       - name: Setup SSH
         run: |
           set -Eeuo pipefail
-          echo "HOME=$HOME"
           mkdir -p "$HOME/.ssh"
           chmod 700 "$HOME/.ssh"
-          # 秘密鍵配置（ed25519 推奨。secrets の末尾改行はそのままでOK）
           printf '%s\n' "$SSH_PRIVATE_KEY" > "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/id_ed25519"
-          # known_hosts 登録（ポート指定対応）
           ssh-keyscan -p "$SSH_PORT" -H "$SSH_HOST" >> "$HOME/.ssh/known_hosts"
 
       - name: Copy bundle to server
@@ -62,7 +76,6 @@ jobs:
           set -Eeuo pipefail
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -lc '
             set -Eeuo pipefail
-
             mkdir -p "'"$DEPLOY_PATH"'"
             tar -xzf /tmp/deploy.tar.gz -C "'"$DEPLOY_PATH"'"
             rm -f /tmp/deploy.tar.gz
@@ -73,4 +86,11 @@ jobs:
             if pm2 describe "'"$PM2_APP_NAME"'" >/dev/null 2>&1; then
               pm2 reload "'"$PM2_APP_NAME"'"
             else
-              pm2 start index.js --name "'"$PM2
+              pm2 start index.js --name "'"$PM2_APP_NAME"'"
+            fi
+            pm2 save
+          '
+
+      - name: Cleanup
+        if: always()
+        run: rm -f "$HOME/.ssh/id_ed25519"
