@@ -97,6 +97,11 @@ export const verify = async (req, res) => {
     if (result.data?.id) {
       const authToken = await extractAuthToken(vrchat);
 
+      // 認証トークンをファイルに保存
+      if (authToken) {
+        await saveAuthToken(authToken);
+      }
+
       return res.status(200).json({
         message: "Login successful",
         authToken: authToken,
