@@ -4,13 +4,14 @@ import { VRChat } from "vrchat";
 
 import { verify } from "./verify.js";
 import { getTrust } from "./getTrust.js";
+import { getVrcID } from "./getVrcID.js";
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
 app.post('/api/verify',verify);
-// app.get('/api/getVrcId',getVrcID);
+app.post('/api/getVrcId',getVrcID);
 app.post('/api/getTrust',getTrust);
 
 app.listen(3000,()=>{
