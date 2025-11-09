@@ -158,6 +158,22 @@ jobs:
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -l /tmp/deploy-script.sh '$DEPLOY_PATH' '$PM2_APP_NAME'"
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "rm -f /tmp/deploy-script.sh"
 
+      - name: Verify deployment
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -l" <<'VERIFY'
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+
+          echo "=== PM2 Status ==="
+          pm2 status
+          echo ""
+          echo "=== PM2 Logs (last 20 lines) ==="
+          pm2 logs --lines 20 --nostream
+          echo ""
+          echo "=== Listening Ports ==="
+          ss -tulpn | grep LISTEN || netstat -tulpn | grep LISTEN
+          VERIFY
+
       - name: Cleanup key
         if: always()
         run: rm -f "$HOME/.ssh/id_ed25519"
