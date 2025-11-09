@@ -1,5 +1,5 @@
 import express, { json } from "express";
-import cors from 'cors'
+import cors from "cors";
 import { VRChat } from "vrchat";
 
 import { verify } from "./verify.js";
@@ -10,10 +10,13 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-app.post('/api/verify',verify);
-app.post('/api/getVrcId',getVrcID);
-app.post('/api/getTrust',getTrust);
+app.post("/api/verify", verify);
+app.post("/api/getVrcId", getVrcID);
+app.post("/api/getTrust", getTrust);
 
-app.listen(3000,()=>{
-    console.log('server is running');
-})
+app.get("/", (req, res) => {
+  res.status(200).json({ message: "health check" });
+});
+app.listen(3000, () => {
+  console.log("server is running");
+});
