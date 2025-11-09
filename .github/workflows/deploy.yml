@@ -58,48 +58,68 @@ jobs:
 
       - name: Install & PM2 restart
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
-            "export DEPLOY_PATH='$DEPLOY_PATH' PM2_APP_NAME='$PM2_APP_NAME'; \
-             bash -l" <<'ENDSSH'
-            set -Eeuo pipefail
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l <<ENDSSH
+          set -Eeuo pipefail
 
-            # Load NVM if available
-            export NVM_DIR="$HOME/.nvm"
-            [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+          # Load environment files
+          [ -f ~/.bashrc ] && source ~/.bashrc
+          [ -f ~/.bash_profile ] && source ~/.bash_profile
+          [ -f ~/.profile ] && source ~/.profile
 
-            # Verify npm is available
-            if ! command -v npm &> /dev/null; then
-              echo "Error: npm not found in PATH"
-              echo "PATH: $PATH"
-              exit 1
+          # Load NVM
+          export NVM_DIR="\$HOME/.nvm"
+          [ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+
+          # Try to find node/npm in common locations
+          for node_path in \
+            "\$HOME/.nvm/versions/node/*/bin" \
+            "/usr/local/bin" \
+            "/opt/nodejs/bin" \
+            "\$HOME/.local/bin"; do
+            if [ -d "\$node_path" ] && [ -x "\$node_path/node" ]; then
+              export PATH="\$node_path:\$PATH"
+              break
             fi
+          done
 
-            # Create deploy directory with sudo if needed
-            if [ ! -d "$DEPLOY_PATH" ]; then
-              if mkdir -p "$DEPLOY_PATH" 2>/dev/null; then
-                echo "Created directory: $DEPLOY_PATH"
-              else
-                echo "Creating directory with sudo..."
-                sudo mkdir -p "$DEPLOY_PATH"
-                sudo chown -R $USER:$USER "$DEPLOY_PATH"
-              fi
-            fi
+          # Debug: Show what we found
+          echo "Node version: \$(node --version 2>&1 || echo 'not found')"
+          echo "NPM version: \$(npm --version 2>&1 || echo 'not found')"
+          echo "PM2 location: \$(which pm2 2>&1 || echo 'not found')"
 
-            # Deploy application
-            tar -xzf /tmp/deploy.tar.gz -C "$DEPLOY_PATH"
-            rm -f /tmp/deploy.tar.gz
-            cd "$DEPLOY_PATH"
+          # Verify npm is available
+          if ! command -v npm &> /dev/null; then
+            echo "Error: npm still not found in PATH"
+            echo "PATH: \$PATH"
+            exit 1
+          fi
 
-            # Install dependencies
-            npm ci --omit=dev
-
-            # Reload or start PM2 app
-            if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
-              pm2 reload "$PM2_APP_NAME"
+          # Create deploy directory with sudo if needed
+          if [ ! -d "$DEPLOY_PATH" ]; then
+            if mkdir -p "$DEPLOY_PATH" 2>/dev/null; then
+              echo "Created directory: $DEPLOY_PATH"
             else
-              pm2 start index.js --name "$PM2_APP_NAME"
+              echo "Creating directory with sudo..."
+              sudo mkdir -p "$DEPLOY_PATH"
+              sudo chown -R \$USER:\$USER "$DEPLOY_PATH"
             fi
-            pm2 save
+          fi
+
+          # Deploy application
+          tar -xzf /tmp/deploy.tar.gz -C "$DEPLOY_PATH"
+          rm -f /tmp/deploy.tar.gz
+          cd "$DEPLOY_PATH"
+
+          # Install dependencies
+          npm ci --omit=dev
+
+          # Reload or start PM2 app
+          if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
+            pm2 reload "$PM2_APP_NAME"
+          else
+            pm2 start index.js --name "$PM2_APP_NAME"
+          fi
+          pm2 save
           ENDSSH
 
       - name: Cleanup key
