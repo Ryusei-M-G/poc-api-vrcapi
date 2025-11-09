@@ -58,23 +58,42 @@ jobs:
 
       - name: Check Node.js installation
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l <<'EOF'
+          echo "=== Creating diagnostic script ==="
+          cat > /tmp/check-node.sh <<'CHECKEOF'
+          #!/bin/bash
           echo "=== Checking Node.js installation ==="
           echo "User: $(whoami)"
           echo "Home: $HOME"
-          echo "PATH: $PATH"
           echo ""
-          echo "Looking for node installations..."
-          find ~ -name "node" -type f 2>/dev/null | head -5 || echo "No node found in home"
+          echo "Shell config files:"
+          ls -la ~/.bashrc ~/.bash_profile ~/.profile ~/.zshrc 2>&1 | grep -v "cannot access" || true
+          echo ""
+          echo "Initial PATH: $PATH"
+          echo ""
+          echo "Sourcing shell configs..."
+          [ -f ~/.bashrc ] && source ~/.bashrc && echo "Sourced ~/.bashrc"
+          [ -f ~/.bash_profile ] && source ~/.bash_profile && echo "Sourced ~/.bash_profile"
+          [ -f ~/.profile ] && source ~/.profile && echo "Sourced ~/.profile"
+          echo "PATH after sourcing: $PATH"
+          echo ""
+          echo "Checking for NVM..."
+          ls -la ~/.nvm 2>&1 || echo "~/.nvm not found"
+          [ -s "$HOME/.nvm/nvm.sh" ] && echo "NVM script exists" || echo "NVM script not found"
+          echo ""
+          echo "Looking for node in filesystem..."
+          find ~ -name "node" -type f -executable 2>/dev/null | head -10 || echo "No node found"
+          echo ""
+          echo "Checking system paths..."
+          ls -la /usr/local/bin/node /usr/bin/node 2>&1 | grep -v "cannot access" || echo "node not in system paths"
+          ls -la /usr/local/bin/npm /usr/bin/npm 2>&1 | grep -v "cannot access" || echo "npm not in system paths"
+          echo ""
           which node || echo "node not in PATH"
           which npm || echo "npm not in PATH"
           which pm2 || echo "pm2 not in PATH"
-          echo ""
-          echo "Checking common installation locations..."
-          ls -la ~/.nvm 2>/dev/null || echo "~/.nvm not found"
-          ls -la /usr/local/bin/{node,npm,pm2} 2>/dev/null || echo "Not in /usr/local/bin"
-          ls -la /usr/bin/{node,npm,pm2} 2>/dev/null || echo "Not in /usr/bin"
-          EOF
+          CHECKEOF
+          chmod +x /tmp/check-node.sh
+          scp -P "$SSH_PORT" /tmp/check-node.sh "$SSH_USER@$SSH_HOST:/tmp/check-node.sh"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash /tmp/check-node.sh"
 
       - name: Create deploy script
         run: |
