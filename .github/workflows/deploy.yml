@@ -58,8 +58,12 @@ jobs:
 
       - name: Install & PM2 restart
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l -s <<ENDSSH
             set -Eeuo pipefail
+
+            # Load NVM if available
+            export NVM_DIR="\$HOME/.nvm"
+            [ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
 
             # Create deploy directory with sudo if needed
             if [ ! -d "$DEPLOY_PATH" ]; then
