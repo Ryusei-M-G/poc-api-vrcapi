@@ -139,6 +139,9 @@ jobs:
             echo "Node.js not found. Installing via NVM..."
             echo "========================================="
 
+            # Temporarily disable 'set -u' for NVM operations
+            set +u
+
             # Install NVM if not present
             if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
               echo "Installing NVM..."
@@ -150,15 +153,23 @@ jobs:
             # Install Node.js LTS
             echo "Installing Node.js LTS..."
             nvm install --lts
-            nvm use --lts
+            nvm alias default lts/*
+
+            # Reload NVM to use the installed version
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 
             # Install PM2 globally
             echo "Installing PM2..."
             npm install -g pm2
 
+            # Re-enable 'set -u'
+            set -u
+
             echo "Node.js installation complete!"
             echo "Node version: $(node --version)"
             echo "NPM version: $(npm --version)"
+            echo "PM2 version: $(pm2 --version)"
             echo "========================================="
           fi
 
