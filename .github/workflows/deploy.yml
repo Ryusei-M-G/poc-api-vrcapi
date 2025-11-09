@@ -56,6 +56,26 @@ jobs:
       - name: Copy bundle
         run: scp -P "$SSH_PORT" .deploy/deploy.tar.gz "$SSH_USER@$SSH_HOST:/tmp/deploy.tar.gz"
 
+      - name: Check Node.js installation
+        run: |
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l <<'EOF'
+          echo "=== Checking Node.js installation ==="
+          echo "User: $(whoami)"
+          echo "Home: $HOME"
+          echo "PATH: $PATH"
+          echo ""
+          echo "Looking for node installations..."
+          find ~ -name "node" -type f 2>/dev/null | head -5 || echo "No node found in home"
+          which node || echo "node not in PATH"
+          which npm || echo "npm not in PATH"
+          which pm2 || echo "pm2 not in PATH"
+          echo ""
+          echo "Checking common installation locations..."
+          ls -la ~/.nvm 2>/dev/null || echo "~/.nvm not found"
+          ls -la /usr/local/bin/{node,npm,pm2} 2>/dev/null || echo "Not in /usr/local/bin"
+          ls -la /usr/bin/{node,npm,pm2} 2>/dev/null || echo "Not in /usr/bin"
+          EOF
+
       - name: Install & PM2 restart
         run: |
           ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l <<ENDSSH
