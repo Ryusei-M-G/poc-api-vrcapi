@@ -56,9 +56,12 @@ jobs:
       - name: Copy bundle
         run: scp -P "$SSH_PORT" .deploy/deploy.tar.gz "$SSH_USER@$SSH_HOST:/tmp/deploy.tar.gz"
 
-      - name: Check Node.js installation
+      - name: Diagnostic - Check Node.js installation
+        continue-on-error: true
         run: |
-          echo "=== Creating diagnostic script ==="
+          echo "========================================="
+          echo "DIAGNOSTIC: Checking Node.js installation"
+          echo "========================================="
           cat > /tmp/check-node.sh <<'CHECKEOF'
           #!/bin/bash
           echo "=== Checking Node.js installation ==="
@@ -80,7 +83,7 @@ jobs:
           ls -la ~/.nvm 2>&1 || echo "~/.nvm not found"
           [ -s "$HOME/.nvm/nvm.sh" ] && echo "NVM script exists" || echo "NVM script not found"
           echo ""
-          echo "Looking for node in filesystem..."
+          echo "Looking for node in filesystem (this may take a moment)..."
           find ~ -name "node" -type f -executable 2>/dev/null | head -10 || echo "No node found"
           echo ""
           echo "Checking system paths..."
@@ -90,10 +93,13 @@ jobs:
           which node || echo "node not in PATH"
           which npm || echo "npm not in PATH"
           which pm2 || echo "pm2 not in PATH"
+          echo ""
+          echo "=== Diagnostic complete ==="
           CHECKEOF
           chmod +x /tmp/check-node.sh
           scp -P "$SSH_PORT" /tmp/check-node.sh "$SSH_USER@$SSH_HOST:/tmp/check-node.sh"
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash /tmp/check-node.sh"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash /tmp/check-node.sh" || echo "Diagnostic completed with errors (non-fatal)"
+          echo "========================================="
 
       - name: Create deploy script
         run: |
@@ -127,9 +133,38 @@ jobs:
           echo "NPM version: $(npm --version 2>&1 || echo 'not found')"
           echo "PM2 location: $(which pm2 2>&1 || echo 'not found')"
 
-          # Verify npm is available
+          # Auto-install Node.js via NVM if not found
           if ! command -v npm &> /dev/null; then
-            echo "Error: npm still not found in PATH"
+            echo "========================================="
+            echo "Node.js not found. Installing via NVM..."
+            echo "========================================="
+
+            # Install NVM if not present
+            if [ ! -s "$HOME/.nvm/nvm.sh" ]; then
+              echo "Installing NVM..."
+              curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.0/install.sh | bash
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+            fi
+
+            # Install Node.js LTS
+            echo "Installing Node.js LTS..."
+            nvm install --lts
+            nvm use --lts
+
+            # Install PM2 globally
+            echo "Installing PM2..."
+            npm install -g pm2
+
+            echo "Node.js installation complete!"
+            echo "Node version: $(node --version)"
+            echo "NPM version: $(npm --version)"
+            echo "========================================="
+          fi
+
+          # Final verification
+          if ! command -v npm &> /dev/null; then
+            echo "Error: npm still not found after installation attempt"
             echo "PATH: $PATH"
             exit 1
           fi
