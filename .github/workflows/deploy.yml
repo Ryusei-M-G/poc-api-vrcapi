@@ -76,9 +76,10 @@ jobs:
           ls -la /usr/bin/{node,npm,pm2} 2>/dev/null || echo "Not in /usr/bin"
           EOF
 
-      - name: Install & PM2 restart
+      - name: Create deploy script
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l <<ENDSSH
+          cat > /tmp/deploy-script.sh <<'SCRIPT_END'
+          #!/bin/bash
           set -Eeuo pipefail
 
           # Load environment files
@@ -87,60 +88,67 @@ jobs:
           [ -f ~/.profile ] && source ~/.profile
 
           # Load NVM
-          export NVM_DIR="\$HOME/.nvm"
-          [ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+          export NVM_DIR="$HOME/.nvm"
+          [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
 
           # Try to find node/npm in common locations
           for node_path in \
-            "\$HOME/.nvm/versions/node/*/bin" \
+            "$HOME/.nvm/versions/node/*/bin" \
             "/usr/local/bin" \
             "/opt/nodejs/bin" \
-            "\$HOME/.local/bin"; do
-            if [ -d "\$node_path" ] && [ -x "\$node_path/node" ]; then
-              export PATH="\$node_path:\$PATH"
+            "$HOME/.local/bin"; do
+            if [ -d "$node_path" ] && [ -x "$node_path/node" ]; then
+              export PATH="$node_path:$PATH"
               break
             fi
           done
 
           # Debug: Show what we found
-          echo "Node version: \$(node --version 2>&1 || echo 'not found')"
-          echo "NPM version: \$(npm --version 2>&1 || echo 'not found')"
-          echo "PM2 location: \$(which pm2 2>&1 || echo 'not found')"
+          echo "Node version: $(node --version 2>&1 || echo 'not found')"
+          echo "NPM version: $(npm --version 2>&1 || echo 'not found')"
+          echo "PM2 location: $(which pm2 2>&1 || echo 'not found')"
 
           # Verify npm is available
           if ! command -v npm &> /dev/null; then
             echo "Error: npm still not found in PATH"
-            echo "PATH: \$PATH"
+            echo "PATH: $PATH"
             exit 1
           fi
 
           # Create deploy directory with sudo if needed
-          if [ ! -d "$DEPLOY_PATH" ]; then
-            if mkdir -p "$DEPLOY_PATH" 2>/dev/null; then
-              echo "Created directory: $DEPLOY_PATH"
+          if [ ! -d "$1" ]; then
+            if mkdir -p "$1" 2>/dev/null; then
+              echo "Created directory: $1"
             else
               echo "Creating directory with sudo..."
-              sudo mkdir -p "$DEPLOY_PATH"
-              sudo chown -R \$USER:\$USER "$DEPLOY_PATH"
+              sudo mkdir -p "$1"
+              sudo chown -R $USER:$USER "$1"
             fi
           fi
 
           # Deploy application
-          tar -xzf /tmp/deploy.tar.gz -C "$DEPLOY_PATH"
+          tar -xzf /tmp/deploy.tar.gz -C "$1"
           rm -f /tmp/deploy.tar.gz
-          cd "$DEPLOY_PATH"
+          cd "$1"
 
           # Install dependencies
           npm ci --omit=dev
 
           # Reload or start PM2 app
-          if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
-            pm2 reload "$PM2_APP_NAME"
+          if pm2 describe "$2" >/dev/null 2>&1; then
+            pm2 reload "$2"
           else
-            pm2 start index.js --name "$PM2_APP_NAME"
+            pm2 start index.js --name "$2"
           fi
           pm2 save
-          ENDSSH
+          SCRIPT_END
+          chmod +x /tmp/deploy-script.sh
+
+      - name: Copy and run deploy script
+        run: |
+          scp -P "$SSH_PORT" /tmp/deploy-script.sh "$SSH_USER@$SSH_HOST:/tmp/deploy-script.sh"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "bash -l /tmp/deploy-script.sh '$DEPLOY_PATH' '$PM2_APP_NAME'"
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" "rm -f /tmp/deploy-script.sh"
 
       - name: Cleanup key
         if: always()
