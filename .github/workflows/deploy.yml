@@ -58,13 +58,29 @@ jobs:
 
       - name: Install & PM2 restart
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash <<ENDSSH
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -s <<ENDSSH
             set -Eeuo pipefail
-            mkdir -p "$DEPLOY_PATH"
+
+            # Create deploy directory with sudo if needed
+            if [ ! -d "$DEPLOY_PATH" ]; then
+              if mkdir -p "$DEPLOY_PATH" 2>/dev/null; then
+                echo "Created directory: $DEPLOY_PATH"
+              else
+                echo "Creating directory with sudo..."
+                sudo mkdir -p "$DEPLOY_PATH"
+                sudo chown -R \$USER:\$USER "$DEPLOY_PATH"
+              fi
+            fi
+
+            # Deploy application
             tar -xzf /tmp/deploy.tar.gz -C "$DEPLOY_PATH"
             rm -f /tmp/deploy.tar.gz
             cd "$DEPLOY_PATH"
+
+            # Install dependencies
             npm ci --omit=dev
+
+            # Reload or start PM2 app
             if pm2 describe "$PM2_APP_NAME" >/dev/null 2>&1; then
               pm2 reload "$PM2_APP_NAME"
             else
