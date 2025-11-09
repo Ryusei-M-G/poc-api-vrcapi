@@ -180,6 +180,16 @@ jobs:
             exit 1
           fi
 
+          # Install PM2 if not found
+          if ! command -v pm2 &> /dev/null; then
+            echo "========================================="
+            echo "PM2 not found. Installing PM2..."
+            echo "========================================="
+            npm install -g pm2
+            echo "PM2 version: $(pm2 --version)"
+            echo "========================================="
+          fi
+
           # Create deploy directory with sudo if needed
           if [ ! -d "$1" ]; then
             if mkdir -p "$1" 2>/dev/null; then
