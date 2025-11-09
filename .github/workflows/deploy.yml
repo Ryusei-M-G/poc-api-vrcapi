@@ -58,12 +58,21 @@ jobs:
 
       - name: Install & PM2 restart
         run: |
-          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" bash -l -s <<ENDSSH
+          ssh -p "$SSH_PORT" "$SSH_USER@$SSH_HOST" \
+            "export DEPLOY_PATH='$DEPLOY_PATH' PM2_APP_NAME='$PM2_APP_NAME'; \
+             bash -l" <<'ENDSSH'
             set -Eeuo pipefail
 
             # Load NVM if available
-            export NVM_DIR="\$HOME/.nvm"
-            [ -s "\$NVM_DIR/nvm.sh" ] && source "\$NVM_DIR/nvm.sh"
+            export NVM_DIR="$HOME/.nvm"
+            [ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+
+            # Verify npm is available
+            if ! command -v npm &> /dev/null; then
+              echo "Error: npm not found in PATH"
+              echo "PATH: $PATH"
+              exit 1
+            fi
 
             # Create deploy directory with sudo if needed
             if [ ! -d "$DEPLOY_PATH" ]; then
@@ -72,7 +81,7 @@ jobs:
               else
                 echo "Creating directory with sudo..."
                 sudo mkdir -p "$DEPLOY_PATH"
-                sudo chown -R \$USER:\$USER "$DEPLOY_PATH"
+                sudo chown -R $USER:$USER "$DEPLOY_PATH"
               fi
             fi
 
