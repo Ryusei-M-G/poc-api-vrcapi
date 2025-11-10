@@ -1,14 +1,20 @@
+import { loadAuthToken } from "./authHelper.js";
+
 const VRCHAT_API_BASE = "https://api.vrchat.cloud/api/1";
 
 export const getTrust = async (req, res) => {
-  const { USER_ID, authToken } = req.body;
-
-  if (!authToken) {
-    return res.status(400).json({ message: "bad request. please send authToken." });
-  }
+  const { USER_ID } = req.body;
 
   if (!USER_ID || !USER_ID.startsWith("usr_")) {
     return res.status(400).json({ message: "bad request. please send vrchat userid." });
+  }
+
+  // 保存された認証トークンを読み込む
+  const authToken = await loadAuthToken();
+  if (!authToken) {
+    return res.status(401).json({
+      message: "Authentication required. Please login using /api/verify first."
+    });
   }
 
   try {
