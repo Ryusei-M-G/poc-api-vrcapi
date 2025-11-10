@@ -135,6 +135,8 @@ jobs:
           fi
 
           # Deploy application
+          echo "Cleaning up destination directory: $1"
+          find "$1" -mindepth 1 -delete
           tar -xzf /tmp/deploy.tar.gz -C "$1"
           rm -f /tmp/deploy.tar.gz
           cd "$1"
