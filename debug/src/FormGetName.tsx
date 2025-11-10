@@ -120,7 +120,7 @@ const FormGetName = () => {
     setResult(null);
 
     try {
-      const response = await axios.post("http://localhost:3000/api/getVrcId", {
+      const response = await axios.post("http://136.118.53.103/api/getVrcId", {
         displayName: displayName,
       });
       setResult(response.data);

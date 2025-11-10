@@ -120,7 +120,7 @@ const App = () => {
     setResult(null);
 
     try {
-      const response = await axios.post("http://localhost:3000/api/getTrust", {
+      const response = await axios.post("http://136.118.53.103/api/getTrust", {
         USER_ID: userId,
       });
       setResult(response.data);
