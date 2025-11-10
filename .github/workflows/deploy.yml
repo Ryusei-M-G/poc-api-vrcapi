@@ -134,6 +134,11 @@ jobs:
             fi
           fi
 
+          # Stop existing PM2 app BEFORE deployment
+          echo "Stopping PM2 app: $2"
+          pm2 stop "$2" 2>/dev/null || true
+          pm2 delete "$2" 2>/dev/null || true
+
           # Deploy application
           echo "Cleaning up destination directory: $1"
           sudo find "$1" -mindepth 1 -delete
@@ -143,22 +148,16 @@ jobs:
           rm -f /tmp/deploy.tar.gz
           cd "$1"
 
-          # Install dependencies
-          npm ci --omit=dev
-
           # Create logs directory
           mkdir -p logs
 
-          # Stop existing PM2 app if running
-          pm2 stop "$2" 2>/dev/null || true
-          pm2 delete "$2" 2>/dev/null || true
+          # Install dependencies
+          echo "Installing dependencies..."
+          npm ci --omit=dev
 
-          # Start PM2 app with ecosystem config
-          if [ -f ecosystem.config.cjs ]; then
-            pm2 start ecosystem.config.cjs
-          else
-            pm2 start index.js --name "$2" --time --merge-logs
-          fi
+          # Start PM2 app
+          echo "Starting PM2 app: $2"
+          pm2 start index.js --name "$2" --time --merge-logs
 
           pm2 save
 
