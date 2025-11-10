@@ -137,6 +137,8 @@ jobs:
           # Deploy application
           echo "Cleaning up destination directory: $1"
           sudo find "$1" -mindepth 1 -delete
+          echo "Ensuring correct ownership of $1"
+          sudo chown -R $USER:$USER "$1"
           tar -xzf /tmp/deploy.tar.gz -C "$1"
           rm -f /tmp/deploy.tar.gz
           cd "$1"
