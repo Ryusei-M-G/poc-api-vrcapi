@@ -140,6 +140,11 @@ jobs:
           pm2 delete "$2" 2>/dev/null || true
 
           # Deploy application
+          echo "Backing up vrchat_auth.json if exists..."
+          if [ -f "$1/vrchat_auth.json" ]; then
+            cp "$1/vrchat_auth.json" /tmp/vrchat_auth.json.backup
+          fi
+
           echo "Cleaning up destination directory: $1"
           sudo find "$1" -mindepth 1 -delete
           echo "Ensuring correct ownership of $1"
@@ -147,6 +152,13 @@ jobs:
           tar -xzf /tmp/deploy.tar.gz -C "$1"
           rm -f /tmp/deploy.tar.gz
           cd "$1"
+
+          # Restore vrchat_auth.json if backup exists
+          if [ -f /tmp/vrchat_auth.json.backup ]; then
+            echo "Restoring vrchat_auth.json..."
+            mv /tmp/vrchat_auth.json.backup "$1/vrchat_auth.json"
+            chown $USER:$USER "$1/vrchat_auth.json"
+          fi
 
           # Create logs directory
           mkdir -p logs
