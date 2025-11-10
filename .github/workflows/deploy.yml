@@ -176,6 +176,9 @@ jobs:
           echo ""
           echo "=== Listening Ports ==="
           ss -tulpn | grep LISTEN || netstat -tulpn | grep LISTEN
+          echo ""
+          echo "=== Kernel Log (OOM Killer Check) ==="
+          sudo dmesg | grep -i -E "oom|kill" || echo "No OOM killer activity found in dmesg."
           VERIFY
 
       - name: Cleanup key
