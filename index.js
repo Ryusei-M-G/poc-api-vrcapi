@@ -21,18 +21,33 @@ app.use(express.json());
 
 // Lazy load route handlers
 app.post("/api/verify", async (req, res) => {
-  const { verify } = await import("./verify.js");
-  return verify(req, res);
+  try {
+    const { verify } = await import("./verify.js");
+    return verify(req, res);
+  } catch (error) {
+    console.error("Error loading verify module:", error);
+    return res.status(500).json({ error: "Failed to load verify module", details: error.message });
+  }
 });
 
 app.post("/api/getVrcId", async (req, res) => {
-  const { getVrcID } = await import("./getVrcID.js");
-  return getVrcID(req, res);
+  try {
+    const { getVrcID } = await import("./getVrcID.js");
+    return getVrcID(req, res);
+  } catch (error) {
+    console.error("Error loading getVrcID module:", error);
+    return res.status(500).json({ error: "Failed to load getVrcID module", details: error.message });
+  }
 });
 
 app.post("/api/getTrust", async (req, res) => {
-  const { getTrust } = await import("./getTrust.js");
-  return getTrust(req, res);
+  try {
+    const { getTrust } = await import("./getTrust.js");
+    return getTrust(req, res);
+  } catch (error) {
+    console.error("Error loading getTrust module:", error);
+    return res.status(500).json({ error: "Failed to load getTrust module", details: error.message });
+  }
 });
 
 app.get("/", (req, res) => {
