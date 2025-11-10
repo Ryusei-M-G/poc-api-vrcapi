@@ -1,18 +1,39 @@
 import express, { json } from "express";
 import cors from "cors";
-import { VRChat } from "vrchat";
 
-import { verify } from "./verify.js";
-import { getTrust } from "./getTrust.js";
-import { getVrcID } from "./getVrcID.js";
+// Global error handlers
+process.on('uncaughtException', (error) => {
+  console.error('Uncaught Exception:', error);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise);
+  console.error('Reason:', reason);
+  process.exit(1);
+});
+
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-app.post("/api/verify", verify);
-app.post("/api/getVrcId", getVrcID);
-app.post("/api/getTrust", getTrust);
+// Lazy load route handlers
+app.post("/api/verify", async (req, res) => {
+  const { verify } = await import("./verify.js");
+  return verify(req, res);
+});
+
+app.post("/api/getVrcId", async (req, res) => {
+  const { getVrcID } = await import("./getVrcID.js");
+  return getVrcID(req, res);
+});
+
+app.post("/api/getTrust", async (req, res) => {
+  const { getTrust } = await import("./getTrust.js");
+  return getTrust(req, res);
+});
 
 app.get("/", (req, res) => {
   res.status(200).json({ message: "health check" });
