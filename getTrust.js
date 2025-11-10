@@ -1,8 +1,11 @@
 const VRCHAT_API_BASE = "https://api.vrchat.cloud/api/1";
 
 export const getTrust = async (req, res) => {
-  const { USER_ID } = req.body;
-  const authToken = "authcookie_86709dae-d042-475c-a364-7c14d5166d0b";
+  const { USER_ID, authToken } = req.body;
+
+  if (!authToken) {
+    return res.status(400).json({ message: "bad request. please send authToken." });
+  }
 
   if (!USER_ID || !USER_ID.startsWith("usr_")) {
     return res.status(400).json({ message: "bad request. please send vrchat userid." });

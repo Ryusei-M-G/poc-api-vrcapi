@@ -2,8 +2,13 @@ const VRCHAT_API_BASE = "https://api.vrchat.cloud/api/1";
 
 export const getVrcID = async (req, res) => {
   console.log("--- [DEBUG] getVrcID function started ---");
-  const { displayName } = req.body;
-  const authToken = "authcookie_86709dae-d042-475c-a364-7c14d5166d0b";
+  const { displayName, authToken } = req.body;
+
+  if (!authToken) {
+    return res.status(400).json({
+      message: "bad request. please send authToken."
+    });
+  }
 
   console.log(`--- [DEBUG] Received displayName: ${displayName} ---`);
 
