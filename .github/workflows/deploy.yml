@@ -146,13 +146,25 @@ jobs:
           # Install dependencies
           npm ci --omit=dev
 
-          # Reload or start PM2 app
-          if pm2 describe "$2" >/dev/null 2>&1; then
-            pm2 reload "$2"
+          # Create logs directory
+          mkdir -p logs
+
+          # Stop existing PM2 app if running
+          pm2 stop "$2" 2>/dev/null || true
+          pm2 delete "$2" 2>/dev/null || true
+
+          # Start PM2 app with ecosystem config
+          if [ -f ecosystem.config.cjs ]; then
+            pm2 start ecosystem.config.cjs
           else
-            pm2 start index.js --name "$2"
+            pm2 start index.js --name "$2" --time --merge-logs
           fi
+
           pm2 save
+
+          # Show immediate logs
+          sleep 2
+          pm2 logs "$2" --lines 10 --nostream
           SCRIPT_END
           chmod +x /tmp/deploy-script.sh
 
